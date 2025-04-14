@@ -18,7 +18,7 @@
                 <td>{{ leave.createdOn | date: 'dd-MM-yyyy' }}</td>
                 <td>{{ leave.updatedOn | date: 'dd-MM-yyyy' }}</td>
                 <td>{{ leave.updatedBy }}</td>
-                <td><a (click)="startEdit.emit(leave.leaveId)">Edit</a></td>
+                <td><a (click)="startEditRow(leave.leaveId)">Edit</a></td>
                 <td>
                     <a nz-popconfirm nzPopconfirmTitle="Are you sure to delete this leave?"
                         (nzOnConfirm)="deleteLeave.emit({ leaveId: leave.leaveId, employeeId: employee.employeeId })">Delete</a>
