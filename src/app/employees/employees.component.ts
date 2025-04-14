@@ -8,7 +8,7 @@ import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzTableModule } from 'ng-zorro-antd/table';
-import { BehaviorSubject, Observable, Subject, takeUntil } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap, takeUntil } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import { IEmployee } from '../../models/employee';
 import { IEmployeeLeave } from '../../models/employee-leave';
@@ -16,6 +16,8 @@ import { IUpsertLeaveRequest } from '../../models/upsert-leave-request';
 import { IUpsertLeaveResponse } from '../../models/upsert-leave-response';
 import { EmployeeApiService } from '../api/services/employee-api.service';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzIconModule } from 'ng-zorro-antd/icon';
+import { LeaveComponent } from './leave/leave.component';
 
 @Component({
   selector: 'app-employees',
@@ -27,7 +29,9 @@ import { NzMessageService } from 'ng-zorro-antd/message';
     FormsModule,
     NzInputModule,
     NzPopconfirmModule,
-    NzDatePickerModule
+    NzDatePickerModule,
+    NzIconModule,
+    LeaveComponent
   ],
   templateUrl: './employees.component.html',
   styleUrl: './employees.component.scss'
@@ -38,13 +42,18 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     // this.employeesWithLeaves$ = this._searchTerms$.pipe(
     //   debounceTime(300),
     //   distinctUntilChanged(),
-    //   switchMap((term: string) => this.searchEmployees(term)),
+    //   switchMap((term: string) => {
+    //    return this.searchEmployees(term);
+    //   }),
     //   catchError((error) => {
     //     console.error('Error fetching employees:', error);
     //     return of([]);
     //   }),
     //   takeUntil(this.destroy$)
     // );
+    // this._searchTerms$.subscribe(term => {
+    //   return this.searchEmployees(term);
+    // });
   }
 
   /********* Private variables *********/
@@ -55,7 +64,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   private _disabledButtonIds: string[] = [];
   private _searchTerms$ = new Subject<string>();
   private readonly Error = 'error';
-  
+
   /************************************/
 
   /********* Public variables *********/
@@ -84,7 +93,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     // });
     // this._searchTerms$.next('');
   }
-  
+
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
@@ -95,6 +104,14 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
 
   /********* Public methods *********/
+
+  handleDeleteLeave(event: { leaveId: string; employeeId: string }) {
+    this.deleteLeave(event.leaveId, event.employeeId);
+  }
+
+  handleStartEdit(leaveId: string) {
+    this.startEdit(leaveId);
+  }
 
   isDateRangeValid(leaveId: string): boolean {
     const dateRange = this.editCache[leaveId]?.data.dateRange;
@@ -184,7 +201,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   }
 
   saveEdit(leaveId: string, employeeId: string): void {
-    if(this.editCache[leaveId].data.dateRange[0] == undefined || this.editCache[leaveId].data.dateRange[1] == undefined) {
+    if (this.editCache[leaveId].data.dateRange[0] == undefined || this.editCache[leaveId].data.dateRange[1] == undefined) {
       this._messageService.create(this.Error, 'Invalid Start or End Date');
       return;
     }

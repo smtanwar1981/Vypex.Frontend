@@ -1,0 +1,44 @@
+<nz-table #editRowTable nzBordered [nzData]="employee.employeeLeaves" nzTableLayout="auto">
+    <thead>
+        <tr>
+            <th>From (dd-mm-yyyy)</th>
+            <th>To (dd-mm-yyyy)</th>
+            <th>Applied On (dd-mm-yyyy)</th>
+            <th>Updated On (dd-mm-yyyy)</th>
+            <th>Updated By</th>
+            <th nzWidth="200px"></th>
+            <th nzWidth="200px"></th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr *ngFor="let leave of editRowTable.data; trackBy: trackByLeaveId">
+            <ng-container *ngIf="!editCache[leave.leaveId].edit; else editTemplate">
+                <td>{{ leave.startDate | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.endDate | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.createdOn | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.updatedOn | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.updatedBy }}</td>
+                <td><a (click)="startEdit.emit(leave.leaveId)">Edit</a></td>
+                <td>
+                    <a nz-popconfirm nzPopconfirmTitle="Are you sure to delete this leave?"
+                        (nzOnConfirm)="deleteLeave.emit({ leaveId: leave.leaveId, employeeId: employee.employeeId })">Delete</a>
+                </td>
+            </ng-container>
+            <ng-template #editTemplate>
+                <td colspan="2" nzwidth="200px">
+                    <nz-range-picker [nzSize]="size" [(ngModel)]="editCache[leave.leaveId].data.dateRange"
+                        (ngModelChange)="dateChange.emit({dateRange: $event, leaveId: leave.leaveId})"
+                        [nzStatus]="isDateRangeValid(leave.leaveId) ? '' : 'error'"></nz-range-picker>
+                </td>
+                <td>{{ leave.createdOn | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.updatedOn | date: 'dd-MM-yyyy' }}</td>
+                <td>{{ leave.updatedBy }}</td>
+                <td>
+                    <a (click)="saveEdit.emit({ leaveId: leave.leaveId, employeeId: employee.employeeId })" class="save">Save</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    <a nz-popconfirm nzPopconfirmTitle="Sure to cancel?"
+                        (nzOnConfirm)="cancelEdit.emit({leaveId: leave.leaveId, employeeId: employee.employeeId})">Cancel</a>
+                </td>
+            </ng-template>
+        </tr>
+    </tbody>
+</nz-table>

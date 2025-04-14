@@ -2,7 +2,13 @@
   <h1>Vypex Employee Leave Management Portal</h1>
 </div>
 <div style="margin-bottom: 20px; padding: 10px;">
-  <input type="text" [(ngModel)]="searchTerm" (input)="onSearchChange($event)" placeholder="Search by Employee Name" />
+  <nz-input-group [nzSuffix]="suffixIconSearch" style="width: 20%">
+    <input type="text" [(ngModel)]="searchTerm" (input)="onSearchChange($event)" nz-input
+      placeholder="Search by Employee Name" />
+  </nz-input-group>
+  <ng-template #suffixIconSearch>
+    <nz-icon nzType="search" />
+  </ng-template>
 </div>
 @if(employeesWithLeaves$ | async; as employees)
 {
@@ -26,60 +32,25 @@
             <td>{{ employee.employeeName }}</td>
             <td>{{ employee.numberOfDays }}</td>
             <td>{{ employee.leavesCount }}</td>
-            <td><button nz-button nzType="primary" [disabled]="isButtonDisabled(employee.employeeId)" (click)="addLeave(employee.employeeId)">Add Leave</button></td>
+            <td><button nz-button nzType="primary" [disabled]="isButtonDisabled(employee.employeeId)"
+                (click)="addLeave(employee.employeeId)">Add Leave</button></td>
             @if(employee.leavesCount > 0) {
-            <td [nzExpand]="expandSet.has(employee.employeeId)" (nzExpandChange)="onExpandChange(employee.employeeId, $event)"></td>
+            <td [nzExpand]="expandSet.has(employee.employeeId)"
+              (nzExpandChange)="onExpandChange(employee.employeeId, $event)"></td>
             }
           </tr>
-          @if(employee.leavesCount > 0) {
-          <tr [nzExpand]="expandSet.has(employee.employeeId)">
+          <tr *ngIf="employee.leavesCount > 0" [nzExpand]="expandSet.has(employee.employeeId)">
             <span>Existing Leaves</span>
-            <nz-table #editRowTable nzBordered [nzData]="employee.employeeLeaves" nzTableLayout="auto">
-              <thead>
-                <tr>
-                  <th>From (dd-mm-yyyy)</th>
-                  <th>To (dd-mm-yyyy)</th>
-                  <th>Applied On (dd-mm-yyyy)</th>
-                  <th>Updated On (dd-mm-yyyy)</th>
-                  <th>Updated By</th>
-                  <th nzWidth="60px"></th>
-                  <th nzWidth="60px"></th>
-                </tr>
-              </thead>
-        <tbody>
-          @for (leave of editRowTable.data; track leave) {
-          <tr>
-            @if (!editCache[leave.leaveId].edit) {
-            <td>{{leave.startDate | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.endDate | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.createdOn | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.updatedOn | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.updatedBy}}</td>
-            <td><a (click)="startEdit(leave.leaveId)">Edit</a></td>
-            <td>
-              <a nz-popconfirm nzPopconfirmTitle="Are Sure to delete this leave?" (nzOnConfirm)="deleteLeave(leave.leaveId, employee.employeeId)">Delete</a>
+            <td colspan="7">
+              <app-leave [employee]="employee" (startEdit)="startEdit($event)"
+                (deleteLeave)="deleteLeave($event.leaveId, $event.employeeId)" [editCache]="editCache"
+                (cancelEdit)="cancelEdit($event.leaveId, $event.employeeId)"
+                (saveEdit)="saveEdit($event.leaveId, $event.employeeId)">
+              </app-leave>
             </td>
-            } @else {
-            <td colspan="2" nzwidth="200px"><nz-range-picker [nzSize]="size" [(ngModel)]="editCache[leave.leaveId].data.dateRange"
-                               (ngModelChange)="onChange($event, leave.leaveId)"
-                               [nzStatus]="isDateRangeValid(leave.leaveId) ? '' : 'error'"></nz-range-picker></td>
-
-            <td>{{leave.createdOn | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.updatedOn | date: 'dd-MM-yyyy'}}</td>
-            <td>{{leave.updatedBy}}</td>
-            <td>
-              <a (click)="saveEdit(leave.leaveId, employee.employeeId)" class="save">Save</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-              <a nz-popconfirm nzPopconfirmTitle="Sure to cancel?" (nzOnConfirm)="cancelEdit(leave.leaveId, employee.employeeId)">Cancel</a>
-            </td>
-            }
           </tr>
           }
         </tbody>
-      </nz-table>
-      </tr>
-      }
-      }
-      </tbody>
       </nz-table>
     </div>
   </div>
