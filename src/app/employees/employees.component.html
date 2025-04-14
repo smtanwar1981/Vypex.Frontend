@@ -1,0 +1,81 @@
+@if(employeesWithLeaves$ | async; as employees)
+{
+@if (employees.length > 0) {
+<div nz-row>
+  <div nz-col nzXs="24">
+    <div style="text-align: center;">
+      <nz-table #basicTable [nzData]="employees">
+        <thead>
+          <tr>
+            <th>Employee Name</th>
+            <th>Number of leaves (in days)</th>
+            <th>Leaves Count</th>
+            <th nzWidth="60px"></th>
+            <th nzWidth="60px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (employee of employees; track employee) {
+          <tr>
+            <td>{{ employee.employeeName }}</td>
+            <td>{{ employee.numberOfDays }}</td>
+            <td>{{ employee.leavesCount }}</td>
+            <td><button nz-button nzType="primary" [disabled]="isButtonDisabled(employee.employeeId)" (click)="addLeave(employee.employeeId)">Add Leave</button></td>
+            @if(employee.leavesCount > 0) {
+            <td [nzExpand]="expandSet.has(employee.employeeId)" (nzExpandChange)="onExpandChange(employee.employeeId, $event)"></td>
+            }
+          </tr>
+          @if(employee.leavesCount > 0) {
+          <tr [nzExpand]="expandSet.has(employee.employeeId)">
+            <span>Existing Leaves</span>
+            <nz-table #editRowTable nzBordered [nzData]="employee.employeeLeaves" nzTableLayout="fixed">
+              <thead>
+                <tr>
+                  <th>From (dd-mm-yyyy)</th>
+                  <th>To (dd-mm-yyyy)</th>
+                  <th>Applied On (dd-mm-yyyy)</th>
+                  <th>Updated On (dd-mm-yyyy)</th>
+                  <th>Updated By</th>
+                  <th nzWidth="60px"></th>
+                  <th nzWidth="60px"></th>
+                </tr>
+              </thead>
+        <tbody>
+          @for (leave of editRowTable.data; track leave) {
+          <tr>
+            @if (!editCache[leave.leaveId].edit) {
+            <td>{{leave.startDate | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.endDate | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.createdOn | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.updatedOn | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.updatedBy}}</td>
+            <td><a (click)="startEdit(leave.leaveId)">Edit</a></td>
+            <td>
+              <a nz-popconfirm nzPopconfirmTitle="Are Sure to delete this leave?" (nzOnConfirm)="deleteLeave(leave.leaveId, employee.employeeId)">Delete</a>
+            </td>
+            } @else {
+            <td colspan="2" nzwidth="200px"><nz-range-picker [nzSize]="size" [(ngModel)]="editCache[leave.leaveId].data.dateRange"
+                               (ngModelChange)="onChange($event, leave.leaveId)"></nz-range-picker></td>
+
+            <td>{{leave.createdOn | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.updatedOn | date: 'dd-MM-yyyy'}}</td>
+            <td>{{leave.updatedBy}}</td>
+            <td>
+              <a (click)="saveEdit(leave.leaveId, employee.employeeId)" class="save">Save</a>
+              <a nz-popconfirm nzPopconfirmTitle="Sure to cancel?" (nzOnConfirm)="cancelEdit(leave.leaveId, employee.employeeId)">Cancel</a>
+            </td>
+            }
+          </tr>
+          }
+        </tbody>
+      </nz-table>
+      </tr>
+      }
+      }
+      </tbody>
+      </nz-table>
+    </div>
+  </div>
+</div>
+}
+}
