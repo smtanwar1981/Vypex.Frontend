@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output } from "@angular/core";
+import { Component, EventEmitter, Input, OnInit, Output, inject } from "@angular/core";
 import { NzPopconfirmModule } from "ng-zorro-antd/popconfirm";
 import { IEmployeeLeave } from "../../../models/employee-leave";
 import { CommonModule } from '@angular/common';
@@ -7,6 +7,7 @@ import { NzTableModule } from "ng-zorro-antd/table";
 import { NzButtonModule } from "ng-zorro-antd/button";
 import { NzDatePickerModule } from "ng-zorro-antd/date-picker";
 import { FormsModule } from "@angular/forms";
+import { AppStateService } from "../../core/state.service";
 
 @Component({
     selector: 'app-leave',
@@ -16,16 +17,29 @@ import { FormsModule } from "@angular/forms";
     templateUrl: './leave.component.html',
     styleUrl: './leave.component.scss'
 })
-export class LeaveComponent {
+export class LeaveComponent implements OnInit {
     @Input() employee!: IEmployee;
-    @Input() editCache: { [key: string]: { edit: boolean; data: IEmployeeLeave } } = {};
+    
     @Input() size: 'large' | 'default' | 'small' = 'default';
 
-    @Output() startEdit = new EventEmitter<string>();
     @Output() deleteLeave = new EventEmitter<{ leaveId: string; employeeId: string }>();
     @Output() cancelEdit = new EventEmitter<{ leaveId: string; employeeId: string }>();
     @Output() saveEdit = new EventEmitter<{ leaveId: string; employeeId: string }>();
     @Output() dateChange = new EventEmitter<{ leaveId: string, dateRange: [Date | null, Date | null] }>();
+
+    editCache: { [key: string]: { edit: boolean; data: IEmployeeLeave } } = {};
+    
+    private readonly _appStateService = inject(AppStateService);
+
+    ngOnInit(): void {
+        this._appStateService.getEditCache().subscribe(editCache => {
+            this.editCache = editCache
+        });
+    }
+
+    startEditRow(leaveId: string) {
+        this._appStateService.editRow(leaveId);
+    }
 
     isDateRangeValid(leaveId: string): boolean {
         const dateRange = this.editCache[leaveId]?.data.dateRange;
