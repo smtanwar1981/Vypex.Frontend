@@ -39,21 +39,6 @@ import { LeaveComponent } from './leave/leave.component';
 export class EmployeesComponent implements OnInit, OnDestroy {
 
   constructor(private _messageService: NzMessageService) {
-    // this.employeesWithLeaves$ = this._searchTerms$.pipe(
-    //   debounceTime(300),
-    //   distinctUntilChanged(),
-    //   switchMap((term: string) => {
-    //    return this.searchEmployees(term);
-    //   }),
-    //   catchError((error) => {
-    //     console.error('Error fetching employees:', error);
-    //     return of([]);
-    //   }),
-    //   takeUntil(this.destroy$)
-    // );
-    // this._searchTerms$.subscribe(term => {
-    //   return this.searchEmployees(term);
-    // });
   }
 
   /********* Private variables *********/
@@ -86,12 +71,6 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       this._employeesWithLeavesSubject.next(data);
       this.updateEditCache();
     });
-    // this.searchEmployees('').pipe(takeUntil(this.destroy$)).subscribe(data => {
-    //   this._employeesWithLeavesSubject.next(data);
-    //   this.employeesWithLeaves$ = this._employeesWithLeavesSubject.asObservable();
-    //   this.updateEditCache();
-    // });
-    // this._searchTerms$.next('');
   }
 
   ngOnDestroy(): void {
