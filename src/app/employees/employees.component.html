@@ -1,10 +1,16 @@
+<div style="text-align: center;">
+  <h1>Vypex Employee Leave Management Portal</h1>
+</div>
+<div style="margin-bottom: 20px; padding: 10px;">
+  <input type="text" [(ngModel)]="searchTerm" (input)="onSearchChange($event)" placeholder="Search by Employee Name" />
+</div>
 @if(employeesWithLeaves$ | async; as employees)
 {
 @if (employees.length > 0) {
 <div nz-row>
   <div nz-col nzXs="24">
     <div style="text-align: center;">
-      <nz-table #basicTable [nzData]="employees">
+      <nz-table #basicTable [nzData]="employees" nzTableLayout="auto">
         <thead>
           <tr>
             <th>Employee Name</th>
@@ -28,7 +34,7 @@
           @if(employee.leavesCount > 0) {
           <tr [nzExpand]="expandSet.has(employee.employeeId)">
             <span>Existing Leaves</span>
-            <nz-table #editRowTable nzBordered [nzData]="employee.employeeLeaves" nzTableLayout="fixed">
+            <nz-table #editRowTable nzBordered [nzData]="employee.employeeLeaves" nzTableLayout="auto">
               <thead>
                 <tr>
                   <th>From (dd-mm-yyyy)</th>
@@ -55,13 +61,14 @@
             </td>
             } @else {
             <td colspan="2" nzwidth="200px"><nz-range-picker [nzSize]="size" [(ngModel)]="editCache[leave.leaveId].data.dateRange"
-                               (ngModelChange)="onChange($event, leave.leaveId)"></nz-range-picker></td>
+                               (ngModelChange)="onChange($event, leave.leaveId)"
+                               [nzStatus]="isDateRangeValid(leave.leaveId) ? '' : 'error'"></nz-range-picker></td>
 
             <td>{{leave.createdOn | date: 'dd-MM-yyyy'}}</td>
             <td>{{leave.updatedOn | date: 'dd-MM-yyyy'}}</td>
             <td>{{leave.updatedBy}}</td>
             <td>
-              <a (click)="saveEdit(leave.leaveId, employee.employeeId)" class="save">Save</a>
+              <a (click)="saveEdit(leave.leaveId, employee.employeeId)" class="save">Save</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
               <a nz-popconfirm nzPopconfirmTitle="Sure to cancel?" (nzOnConfirm)="cancelEdit(leave.leaveId, employee.employeeId)">Cancel</a>
             </td>
             }

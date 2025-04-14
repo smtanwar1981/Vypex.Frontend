@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addDays, format } from 'date-fns';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -15,6 +15,7 @@ import { IEmployeeLeave } from '../../models/employee-leave';
 import { IUpsertLeaveRequest } from '../../models/upsert-leave-request';
 import { IUpsertLeaveResponse } from '../../models/upsert-leave-response';
 import { EmployeeApiService } from '../api/services/employee-api.service';
+import { NzMessageService } from 'ng-zorro-antd/message';
 
 @Component({
   selector: 'app-employees',
@@ -33,38 +34,87 @@ import { EmployeeApiService } from '../api/services/employee-api.service';
 })
 export class EmployeesComponent implements OnInit, OnDestroy {
 
-  constructor(private cdr: ChangeDetectorRef) { }
-
-  public employeesWithLeaves: IEmployee[] | undefined;
-
-  expandSet = new Set<string>();
-  private readonly employeeApiService = inject(EmployeeApiService);
-
-  private employeesWithLeavesSubject = new BehaviorSubject<IEmployee[] | null>(null);
-  employeesWithLeaves$: Observable<IEmployee[] | null> = this.employeesWithLeavesSubject.asObservable();
-  private readonly destroy$ = new Subject<void>();
-
-  editCache: { [key: string]: { edit: boolean; data: IEmployeeLeave } } = {};
-  size: NzDatePickerSizeType = 'large';
-  disabledButtonIds: string[] = [];
-
-  ngOnInit(): void {
-    this.employeeApiService.getEmployeesWithLeaves().pipe(takeUntil(this.destroy$)).subscribe(data => {
-      this.employeesWithLeavesSubject.next(data);
-      this.updateEditCache();
-    });
+  constructor(private _messageService: NzMessageService) {
+    // this.employeesWithLeaves$ = this._searchTerms$.pipe(
+    //   debounceTime(300),
+    //   distinctUntilChanged(),
+    //   switchMap((term: string) => this.searchEmployees(term)),
+    //   catchError((error) => {
+    //     console.error('Error fetching employees:', error);
+    //     return of([]);
+    //   }),
+    //   takeUntil(this.destroy$)
+    // );
   }
 
+  /********* Private variables *********/
+
+  private readonly _employeeApiService = inject(EmployeeApiService);
+  private _employeesWithLeavesSubject = new BehaviorSubject<IEmployee[] | null>(null);
+  private readonly destroy$ = new Subject<void>();
+  private _disabledButtonIds: string[] = [];
+  private _searchTerms$ = new Subject<string>();
+  private readonly Error = 'error';
+  
+  /************************************/
+
+  /********* Public variables *********/
+
+  public employeesWithLeaves: IEmployee[] | undefined;
+  public expandSet = new Set<string>();
+  public employeesWithLeaves$: Observable<IEmployee[] | null> = this._employeesWithLeavesSubject.asObservable();
+  public editCache: { [key: string]: { edit: boolean; data: IEmployeeLeave } } = {};
+  public size: NzDatePickerSizeType = 'large';
+  public searchTerm: string = '';
+
+  /************************************/
+
+
+  /********* Hooks *********/
+
+  ngOnInit(): void {
+    this._employeeApiService.getEmployeesWithLeaves('').pipe(takeUntil(this.destroy$)).subscribe(data => {
+      this._employeesWithLeavesSubject.next(data);
+      this.updateEditCache();
+    });
+    // this.searchEmployees('').pipe(takeUntil(this.destroy$)).subscribe(data => {
+    //   this._employeesWithLeavesSubject.next(data);
+    //   this.employeesWithLeaves$ = this._employeesWithLeavesSubject.asObservable();
+    //   this.updateEditCache();
+    // });
+    // this._searchTerms$.next('');
+  }
+  
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
+    this._employeesWithLeavesSubject.complete();
+  }
+
+  /************************************/
+
+
+  /********* Public methods *********/
+
+  isDateRangeValid(leaveId: string): boolean {
+    const dateRange = this.editCache[leaveId]?.data.dateRange;
+    return dateRange && dateRange[0] instanceof Date && dateRange[1] instanceof Date;
+  }
+
+  searchEmployees(searchTerm: string): Observable<IEmployee[]> {
+    return this._employeeApiService.getEmployeesWithLeaves(searchTerm);
+  }
+
+  onSearchChange(event: Event): void {
+    const searchTerm = (event.target as HTMLInputElement).value;
+    this._searchTerms$.next(searchTerm);
   }
 
   onChange(result: Date[], leaveId: string): void {
   }
 
   addLeave(employeeId: string) {
-    const employeesWithLeaves = this.employeesWithLeavesSubject.getValue();
+    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
     const today = new Date();
     const tomorrow = addDays(today, 1);
     const newLeaveId = this.generateGUIDFunc();
@@ -87,25 +137,25 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       return employee;
     });
     if (updatedEmployees) {
-      this.employeesWithLeavesSubject.next(updatedEmployees);
+      this._employeesWithLeavesSubject.next(updatedEmployees);
       this.updateEditCache();
       this.onExpandChange(employeeId, true);
       this.startEdit(newLeaveId);
-      this.disabledButtonIds.push(employeeId);
+      this._disabledButtonIds.push(employeeId);
     }
   }
 
   isButtonDisabled(employeeId: string): boolean {
-    return this.disabledButtonIds.includes(employeeId);
+    return this._disabledButtonIds.includes(employeeId);
   }
 
   enableButton(employeeId: string): void {
-    this.disabledButtonIds = this.disabledButtonIds.filter(id => id !== employeeId);
+    this._disabledButtonIds = this._disabledButtonIds.filter(id => id !== employeeId);
   }
 
   disableButton(employeeId: string): void {
-    if (!this.disabledButtonIds.includes(employeeId)) {
-      this.disabledButtonIds.push(employeeId);
+    if (!this._disabledButtonIds.includes(employeeId)) {
+      this._disabledButtonIds.push(employeeId);
     }
   }
 
@@ -123,10 +173,21 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
   cancelEdit(leaveId: string, employeeId: string): void {
     this.enableButton(employeeId);
-    this.adjustEmployeeLeavesOnDelete(leaveId, employeeId);
+    this.editCache[leaveId].edit = false;
+    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
+    employeesWithLeaves?.forEach(employee => {
+      const foundLeave = employee.employeeLeaves.find(leave => leave.leaveId === leaveId && leave.createdOn === '');
+      if (foundLeave) {
+        this.adjustEmployeeLeavesOnDelete(leaveId, employee.employeeId);
+      }
+    });
   }
 
   saveEdit(leaveId: string, employeeId: string): void {
+    if(this.editCache[leaveId].data.dateRange[0] == undefined || this.editCache[leaveId].data.dateRange[1] == undefined) {
+      this._messageService.create(this.Error, 'Invalid Start or End Date');
+      return;
+    }
     let updatedStartDate = format((new Date(this.editCache[leaveId].data.dateRange[0])), "yyyy-MM-dd'T'HH:mm:ss");
     let updatedEndDate = format((new Date(this.editCache[leaveId].data.dateRange[1])), "yyyy-MM-dd'T'HH:mm:ss");
 
@@ -137,16 +198,17 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       endDate: updatedEndDate,
       updatedBy: 'User'
     };
-    this.employeeApiService.upsertLeave(upsertLeave).pipe(takeUntil(this.destroy$)).subscribe((data: IUpsertLeaveResponse) => {
+    this._employeeApiService.upsertLeave(upsertLeave).pipe(takeUntil(this.destroy$)).subscribe((data: IUpsertLeaveResponse) => {
       if (data) {
-        const employeesWithLeaves = this.employeesWithLeavesSubject.getValue();
+        const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
         employeesWithLeaves?.forEach(employee => {
           employee.employeeLeaves.forEach(leave => {
             if (leave.leaveId == leaveId) {
               leave.startDate = data.startDate,
                 leave.endDate = data.endDate,
                 leave.updatedBy = data.updatedBy,
-                leave.updatedOn = data.updatedOn
+                leave.updatedOn = data.updatedOn,
+                leave.createdOn = data.createdOn
             }
           })
         });
@@ -156,16 +218,17 @@ export class EmployeesComponent implements OnInit, OnDestroy {
               employee.leavesCount = employee.employeeLeaves.length
           }
         });
-        this.employeesWithLeavesSubject.next(employeesWithLeaves);
+        this._employeesWithLeavesSubject.next(employeesWithLeaves);
         this.updateEditCache();
         this.enableButton(employeeId);
+        this._messageService.create('success', 'Leave has been added/updated successfully !');
       }
     });
 
   }
 
   updateEditCache(): void {
-    const employeesWithLeaves = this.employeesWithLeavesSubject.getValue();
+    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
     employeesWithLeaves?.forEach(employee => {
       employee.employeeLeaves.forEach(leave => {
         this.editCache[leave.leaveId] = {
@@ -177,15 +240,20 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   }
 
   deleteLeave(leaveId: string, employeeId: string): void {
-    this.employeeApiService.deleteLeave(leaveId).subscribe(data => {
+    this._employeeApiService.deleteLeave(leaveId).subscribe(data => {
       if (data > 0) {
         this.adjustEmployeeLeavesOnDelete(leaveId, employeeId);
+        this._messageService.create('success', 'Leave deleted successfully !');
       }
     });
   }
 
+  /************************************/
+
+  /********* Private methods *********/
+
   private adjustEmployeeLeavesOnDelete(leaveId: string, employeeId: string): void {
-    const employeesWithLeaves = this.employeesWithLeavesSubject.getValue();
+    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
     const updatedEmployeesWithLeaves = employeesWithLeaves?.map(employee => {
       if (employee.employeeId == employeeId) {
         const updatedLeaves = employee.employeeLeaves.filter(leave => leave.leaveId != leaveId);
@@ -199,7 +267,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       return employee;
     });
     if (updatedEmployeesWithLeaves) {
-      this.employeesWithLeavesSubject.next(updatedEmployeesWithLeaves);
+      this._employeesWithLeavesSubject.next(updatedEmployeesWithLeaves);
     }
   }
 
@@ -215,4 +283,6 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   private generateGUIDFunc(): string {
     return uuidv4();
   }
+
+  /************************************/
 }

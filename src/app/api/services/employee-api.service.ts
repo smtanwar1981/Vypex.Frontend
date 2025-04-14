@@ -5,26 +5,30 @@ import { IEmployee } from '../../../models/employee';
 import { IUpsertLeaveRequest } from '../../../models/upsert-leave-request';
 import { IUpsertLeaveResponse } from '../../../models/upsert-leave-response';
 import { Employee } from '../models/employee';
+import { environment } from '../../../environments/environment'
 
 @Injectable({ providedIn: 'root' })
 export class EmployeeApiService {
   private readonly httpClient = inject(HttpClient);
 
-  private readonly baseUrl = 'https://localhost:7189';
+  private readonly employeeServiceBaseUrl = environment.employeeServiceBaseUrl;
 
   public getEmployees(): Observable<Array<Employee>> {
-    return this.httpClient.get<Array<Employee>>(`${this.baseUrl}/api/employees`);
+    return this.httpClient.get<Array<Employee>>(`${this.employeeServiceBaseUrl}/api/employees`);
   }
 
-  public getEmployeesWithLeaves(): Observable<IEmployee[]> {
-    return this.httpClient.get<IEmployee[]>(`https://localhost:7196/Employee/getEmployeesWithLeaves`)
+  public getEmployeesWithLeaves(searchTerm: string): Observable<IEmployee[]> {
+    let apiUrl = `${this.employeeServiceBaseUrl}/Employee/getEmployeesWithLeaves`;
+    if(searchTerm)
+      apiUrl = `${this.employeeServiceBaseUrl}/Employee/getEmployeesByName/${searchTerm}`
+    return this.httpClient.get<IEmployee[]>(apiUrl)
   }
 
   public deleteLeave(leaveId: string): Observable<number> {
-    return this.httpClient.delete<number>(`https://localhost:7196/EmployeeLeave/deleteLeave/${leaveId}`);
+    return this.httpClient.delete<number>(`${this.employeeServiceBaseUrl}/EmployeeLeave/deleteLeave/${leaveId}`);
   }
 
   public upsertLeave(request: IUpsertLeaveRequest): Observable<IUpsertLeaveResponse> {
-    return this.httpClient.post<IUpsertLeaveResponse>('https://localhost:7196/EmployeeLeave/upsertLeave', request);
+    return this.httpClient.post<IUpsertLeaveResponse>(`${this.employeeServiceBaseUrl}/EmployeeLeave/upsertLeave`, request);
   }
 }

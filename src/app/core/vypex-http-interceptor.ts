@@ -1,42 +1,64 @@
-import { HttpErrorResponse, HttpEvent, HttpHandlerFn, HttpInterceptorFn, HttpRequest } from '@angular/common/http';
-import { inject } from '@angular/core';
-import { Observable, catchError, throwError } from 'rxjs';
-import { VypexLoggingService } from './vypex-logging-service';
-import { VypexNotificationService } from './vypex-notification-service';
+import { HttpErrorResponse, HttpEvent, HttpHandler, HttpHandlerFn, HttpInterceptor, HttpInterceptorFn, HttpRequest, HttpResponse, HttpStatusCode } from "@angular/common/http";
+import { Injectable, inject } from "@angular/core";
+import { NzMessageService } from "ng-zorro-antd/message";
+import { Observable, catchError, finalize, tap, throwError } from "rxjs";
+import { v4 as uuidv4 } from 'uuid';
 
-export const vypexHttpInterceptor: HttpInterceptorFn = (
-    request: HttpRequest<unknown>,
+export const VypexHttpInterceptor: HttpInterceptorFn = (
+    req: HttpRequest<any>,
     next: HttpHandlerFn
-): Observable<HttpEvent<unknown>> => {
-    const notificationService = inject(VypexNotificationService);
-    const loggingService = inject(VypexLoggingService);
+): Observable<HttpEvent<any>> => {
+    const message = inject(NzMessageService);
+    let activeRequests = 0;
 
-    return next(request).pipe(
-        catchError((error: HttpErrorResponse) => {
-            let errorMessage = 'An unexpected error occurred.';
+    const requestId = uuidv4();
+    console.log(`[${requestId}] Request: ${req.method} ${req.url}`);
 
-            if (error.error instanceof ErrorEvent) {
-                // Client-side or network error
-                errorMessage = `Client-side/Network error: ${error.error.message}`;
-                loggingService.error('Client-side error:', errorMessage);
-            } else {
-                // Backend returned an unsuccessful response code
-                errorMessage = `Backend returned code ${error.status}, body was: ${JSON.stringify(error.error)}`;
-                loggingService.error(`API Error - Status: ${error.status}`, errorMessage);
+    activeRequests++;
+    if (activeRequests === 1) {
+        message.loading('Loading...', { nzDuration: 0 });
+    }
 
-                // Optionally, you can check the error status and show specific notifications
-                if (error.status === 401) {
-                    notificationService.showError('Unauthorized. Please log in again.');
-                    // Optionally, redirect to the login page
-                } else if (error.status === 404) {
-                    notificationService.showError('Resource not found.');
-                } else {
-                    notificationService.showError('Something went wrong. Please try again later.');
+    return next(req).pipe(
+        tap(
+            (event: HttpEvent<any>) => {
+                if (event instanceof HttpResponse) {
+                    console.log(
+                        `[${requestId}] Response: ${req.method} ${req.url}`,
+                        event.body
+                    );
+                    if(event.status == HttpStatusCode.Ok)
+                        message.remove();
+                }
+            },
+            (error: any) => {
+                if (error instanceof HttpErrorResponse) {
+                    console.error(
+                        `[${requestId}] Error: ${req.method} ${req.url}`,
+                        error
+                    );
+                    let errorMessage = error.message;
+                    if (error.error && error.error.message) {
+                        errorMessage = error.error.message;
+                    } else if (error.statusText) {
+                        errorMessage = error.statusText;
+                    } else {
+                        errorMessage = "Request Failed"
+                    }
+                    message.error(`Error: ${errorMessage}`, { nzDuration: 5000 });
                 }
             }
-
-            // Optionally, rethrow the error so components can still handle specific cases
-            return throwError(() => error);
+        ),
+        finalize(() => {
+            activeRequests--;
+            if (activeRequests === 0) {
+                setTimeout(() => {
+                    message.remove();
+                }, 2000);
+            }
+        }),
+        catchError((error: HttpErrorResponse) => {
+            return throwError(error);
         })
     );
 };
