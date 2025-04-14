@@ -228,7 +228,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     employeesWithLeaves?.forEach(employee => {
       employee.employeeLeaves.forEach(leave => {
         this.editCache[leave.leaveId] = {
-          edit: false,
+          edit: this.editCache[leave.leaveId]?.edit != undefined ? this.editCache[leave.leaveId].edit : false,
           data: { ...leave, dateRange: [new Date(leave.startDate), new Date(leave.endDate)] },
         };
       });
