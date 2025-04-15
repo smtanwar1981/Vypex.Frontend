@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { addDays, format } from 'date-fns';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -8,7 +8,7 @@ import { NzDividerModule } from 'ng-zorro-antd/divider';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzTableModule } from 'ng-zorro-antd/table';
-import { BehaviorSubject, Observable, Subject, catchError, debounceTime, distinctUntilChanged, of, switchMap, takeUntil } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, catchError, combineLatest, debounceTime, distinctUntilChanged, of, switchMap, takeUntil, tap } from 'rxjs';
 import { v4 as uuidv4 } from 'uuid';
 import { IEmployee } from '../../models/employee';
 import { IEmployeeLeave } from '../../models/employee-leave';
@@ -39,14 +39,15 @@ import { AppStateService } from '../core/state.service';
 })
 export class EmployeesComponent implements OnInit, OnDestroy {
 
-  constructor(private _messageService: NzMessageService) {
+  constructor(
+    private _messageService: NzMessageService,
+    private cdr: ChangeDetectorRef) {
   }
 
   /********* Private variables *********/
 
   private readonly _employeeApiService = inject(EmployeeApiService);
   private readonly _appStateService = inject(AppStateService);
-  private _employeesWithLeavesSubject = new BehaviorSubject<IEmployee[] | null>(null);
   private readonly destroy$ = new Subject<void>();
   private _disabledButtonIds: string[] = [];
   private _searchTerms$ = new Subject<string>();
@@ -58,7 +59,6 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
   public employeesWithLeaves: IEmployee[] | undefined;
   public expandSet = new Set<string>();
-  public employeesWithLeaves$: Observable<IEmployee[] | null> = this._employeesWithLeavesSubject.asObservable();
   public editCache: { [key: string]: { edit: boolean; data: IEmployeeLeave } } = {};
   public size: NzDatePickerSizeType = 'large';
   public searchTerm: string = '';
@@ -69,29 +69,14 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   /********* Hooks *********/
 
   ngOnInit(): void {
-    this._employeeApiService.getEmployeesWithLeaves('').pipe(takeUntil(this.destroy$)).subscribe(data => {
-      this._employeesWithLeavesSubject.next(data);
-      this.updateEditCache();
-    });
-
-    this._appStateService.getDisableButtonIdsSub().pipe(takeUntil(this.destroy$)).subscribe(value => {
-      this._disabledButtonIds = value;
-    });
-
-    this._appStateService.getExpandChangeSub().pipe(takeUntil(this.destroy$)).subscribe(data => {
-      if (data.checked) {
-        this.expandSet.add(data.employeeId);
-      } else {
-        this.expandSet.delete(data.employeeId);
-      }
-    });
-    this._employeeApiService.getEmployeesWithLeaves2('');
+    this.subscribeToAppState();
+    this.subscribeToSearch();    
+    this.initialHydration();
   }
 
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    this._employeesWithLeavesSubject.complete();
   }
 
   /************************************/
@@ -99,8 +84,13 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
   /********* Public methods *********/
 
+  onSearchInput(event: Event) {
+    const searchTerm = (event.target as HTMLInputElement).value;
+    this._searchTerms$.next(searchTerm);
+  }
+
   addLeave(employeeId: string) {
-    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
+    const employeesWithLeaves = this.employeesWithLeaves;
     const today = new Date();
     const tomorrow = addDays(today, 1);
     const newLeaveId = this.generateGUIDFunc();
@@ -123,7 +113,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
       return employee;
     });
     if (updatedEmployees) {
-      this._employeesWithLeavesSubject.next(updatedEmployees);
+      this._appStateService.setEmployeesWithLeaves(updatedEmployees);
       this.updateEditCache();
       this._appStateService.setExpandChange(employeeId, true);
       this._appStateService.editRow(newLeaveId);
@@ -142,11 +132,10 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   cancelEdit(leaveId: string, employeeId: string): void {
     this._appStateService.resetDisableButtonsIds(employeeId);    
     this._appStateService.cancelEditRow(leaveId);
-    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
-    employeesWithLeaves?.forEach(employee => {
+    this.employeesWithLeaves?.forEach(employee => {
       const foundLeave = employee.employeeLeaves.find(leave => leave.leaveId === leaveId && leave.createdOn === '');
       if (foundLeave) {
-        this.adjustEmployeeLeavesOnDelete(leaveId, employee.employeeId);
+        this._appStateService.adjustEmployeeLeavesOnDelete(leaveId, employee.employeeId);
       }
     });
   }
@@ -168,8 +157,8 @@ export class EmployeesComponent implements OnInit, OnDestroy {
     };
     this._employeeApiService.upsertLeave(upsertLeave).pipe(takeUntil(this.destroy$)).subscribe((data: IUpsertLeaveResponse) => {
       if (data) {
-        const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
-        employeesWithLeaves?.forEach(employee => {
+        const employeesWithLeaves = this.employeesWithLeaves;
+        this.employeesWithLeaves?.forEach(employee => {
           employee.employeeLeaves.forEach(leave => {
             if (leave.leaveId == leaveId) {
               leave.startDate = data.startDate,
@@ -182,11 +171,12 @@ export class EmployeesComponent implements OnInit, OnDestroy {
         });
         employeesWithLeaves?.forEach(employee => {
           if (employee.employeeId == employeeId) {
-            employee.numberOfDays = this.calculateNumberOfDays(employee.employeeLeaves),
+              employee.numberOfDays = this.calculateNumberOfDays(employee.employeeLeaves),
               employee.leavesCount = employee.employeeLeaves.length
           }
         });
-        this._employeesWithLeavesSubject.next(employeesWithLeaves);
+        if(employeesWithLeaves)
+        this._appStateService.setEmployeesWithLeaves(employeesWithLeaves);
         this._appStateService.cancelEditRow(leaveId);
         this._appStateService.resetDisableButtonsIds(employeeId);
         this._messageService.create('success', 'Leave has been added/updated successfully !');
@@ -195,8 +185,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   }
 
   updateEditCache(): void {
-    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
-    employeesWithLeaves?.forEach(employee => {
+    this.employeesWithLeaves?.forEach(employee => {
       employee.employeeLeaves.forEach(leave => {
         this.editCache[leave.leaveId] = {
           edit: this.editCache[leave.leaveId]?.edit != undefined ? this.editCache[leave.leaveId].edit : false,
@@ -210,7 +199,7 @@ export class EmployeesComponent implements OnInit, OnDestroy {
   deleteLeave(leaveId: string, employeeId: string): void {
     this._employeeApiService.deleteLeave(leaveId).subscribe(data => {
       if (data > 0) {
-        this.adjustEmployeeLeavesOnDelete(leaveId, employeeId);
+        this._appStateService.adjustEmployeeLeavesOnDelete(leaveId, employeeId);
         this._messageService.create('success', 'Leave deleted successfully !');
       }
     });
@@ -220,23 +209,54 @@ export class EmployeesComponent implements OnInit, OnDestroy {
 
   /********* Private methods *********/
 
-  private adjustEmployeeLeavesOnDelete(leaveId: string, employeeId: string): void {
-    const employeesWithLeaves = this._employeesWithLeavesSubject.getValue();
-    const updatedEmployeesWithLeaves = employeesWithLeaves?.map(employee => {
-      if (employee.employeeId == employeeId) {
-        const updatedLeaves = employee.employeeLeaves.filter(leave => leave.leaveId != leaveId);
-        return {
-          ...employee,
-          employeeLeaves: updatedLeaves,
-          leavesCount: updatedLeaves.length,
-          numberOfDays: this.calculateNumberOfDays(updatedLeaves),
-        };
+  private initialHydration() {
+    this._employeeApiService.getEmployeesWithLeaves('').subscribe((response) => {
+      if (response) {
+        this._appStateService.setEmployeesWithLeaves(response);
       }
-      return employee;
     });
-    if (updatedEmployeesWithLeaves) {
-      this._employeesWithLeavesSubject.next(updatedEmployeesWithLeaves);
-    }
+  }
+
+  private subscribeToSearch() {
+    this._searchTerms$.pipe(
+      debounceTime(500),
+      distinctUntilChanged(),
+      switchMap((searchTerm: string) => {
+        return this._employeeApiService.getEmployeesWithLeaves(searchTerm).pipe(
+          catchError((error) => {
+            console.error('Error fetching employees:', error);
+            return of([]);
+          })
+        );
+      }),
+      takeUntil(this.destroy$)
+    ).subscribe((response) => {
+      this._appStateService.setEmployeesWithLeaves(response);
+    });
+  }
+
+  private subscribeToAppState() {
+    combineLatest([
+      this._appStateService.getEmployeesWithLeavesSub(),
+      this._appStateService.getDisableButtonIdsSub(),
+      this._appStateService.getExpandChangeSub(),
+    ])
+    .pipe(takeUntil(this.destroy$))
+    .subscribe(([employeesData, disabledButtonIdsValue, expandData]) => {
+      if (employeesData.length > 0) {
+        this.employeesWithLeaves = employeesData;
+        this.updateEditCache();
+      }
+      this._disabledButtonIds = disabledButtonIdsValue;
+      if (expandData) {
+        if (expandData.checked) {
+          this.expandSet.add(expandData.employeeId);
+        } else {
+          this.expandSet.delete(expandData.employeeId);
+        }
+      }
+      this.cdr.detectChanges();
+    });
   }
 
   private calculateNumberOfDays(leaves: IEmployeeLeave[]): number {
