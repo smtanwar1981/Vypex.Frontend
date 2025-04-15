@@ -26,17 +26,6 @@ export class EmployeeApiService {
     return this.httpClient.get<IEmployee[]>(apiUrl)
   }
 
-  public getEmployeesWithLeaves2(searchTerm: string) {
-    let apiUrl = `${this.employeeServiceBaseUrl}/Employee/getEmployeesWithLeaves`;
-    if(searchTerm)
-      apiUrl = `${this.employeeServiceBaseUrl}/Employee/getEmployeesByName/${searchTerm}`
-    this.httpClient.get<IEmployee[]>(apiUrl).subscribe(response => {
-      if (response) {
-        this._appStateService.setEmployeesWithLeaves(response);
-      }
-    });
-  }
-
   public deleteLeave(leaveId: string): Observable<number> {
     return this.httpClient.delete<number>(`${this.employeeServiceBaseUrl}/EmployeeLeave/deleteLeave/${leaveId}`);
   }
